@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'models/forecast_models.dart';
 import 'services/meteo_service.dart';
 import 'services/sun_calculator.dart';
-import 'theme/seesun_theme.dart';
 import 'widgets/detailed_tab.dart';
 import 'widgets/home_tab.dart';
 import 'widgets/lab_tab.dart';
-import 'widgets/liquid_bottom_dock.dart';
+import 'widgets/liquid_glass/liquid_glass_dock.dart';
 import 'widgets/xsec_tab.dart';
 
 void main() {
@@ -276,7 +275,6 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final dockColors = widget.isDark ? SeesunColors.dark : SeesunColors.light;
 
     return Scaffold(
       extendBody: true,
@@ -414,27 +412,26 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
           ),
         ),
       ),
-      bottomNavigationBar: LiquidBottomDock(
-        colors: dockColors,
+      bottomNavigationBar: LiquidGlassDock(
         currentIndex: _currentTab,
         onChanged: _switchTab,
         items: const [
-          LiquidDockItemData(
+          LiquidGlassDockItem(
             icon: Icons.home_outlined,
             activeIcon: Icons.home_rounded,
             label: '主页',
           ),
-          LiquidDockItemData(
+          LiquidGlassDockItem(
             icon: Icons.analytics_outlined,
             activeIcon: Icons.analytics_rounded,
             label: '详细预报',
           ),
-          LiquidDockItemData(
+          LiquidGlassDockItem(
             icon: Icons.cloud_outlined,
             activeIcon: Icons.cloud_rounded,
             label: '大气截面',
           ),
-          LiquidDockItemData(
+          LiquidGlassDockItem(
             icon: Icons.wb_sunny_outlined,
             activeIcon: Icons.wb_sunny_rounded,
             label: '悬日测试',
