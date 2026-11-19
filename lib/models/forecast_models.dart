@@ -77,6 +77,40 @@ class ManhattanhengeResult {
   });
 }
 
+class PhotoWindows {
+  final String goldenHour;
+  final String afterglowWindow;
+  final String blueHour;
+
+  const PhotoWindows({
+    required this.goldenHour,
+    required this.afterglowWindow,
+    required this.blueHour,
+  });
+}
+
+class DailyTrendPoint {
+  final String dateLabel;
+  final String eventTime;
+  final double quality;
+  final String qualityTag;
+  final double aod;
+  final int hcc;
+  final int mcc;
+  final int lcc;
+
+  const DailyTrendPoint({
+    required this.dateLabel,
+    required this.eventTime,
+    required this.quality,
+    required this.qualityTag,
+    required this.aod,
+    required this.hcc,
+    required this.mcc,
+    required this.lcc,
+  });
+}
+
 const Map<String, String> kEventLabels = {
   'rise_1': '今天日出',
   'set_1': '今天日落',

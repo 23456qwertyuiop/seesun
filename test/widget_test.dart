@@ -9,6 +9,9 @@ void main() {
     await tester.pumpWidget(const SeesunApp());
     expect(find.text('seesun'), findsOneWidget);
     expect(find.text('上海 今天日落'), findsOneWidget);
+    expect(find.text('黄金时刻'), findsOneWidget);
+    expect(find.text('火烧云窗口'), findsOneWidget);
+    expect(find.text('蓝调时刻'), findsOneWidget);
 
     final dockBox = tester.renderObject<RenderBox>(find.byType(LiquidGlassDock));
     final offset = dockBox.localToGlobal(Offset.zero);

@@ -168,3 +168,136 @@ ManhattanhengeResult calculateManhattanhenge({
     timeDisplay: sun.timeStr,
   );
 }
+
+int _parseEventSeconds(String eventTime) {
+  final parts = eventTime.split(':');
+  final h = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 17) : 17;
+  final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+  final s = parts.length > 2 ? (int.tryParse(parts[2]) ?? 0) : 0;
+  return h * 3600 + m * 60 + s;
+}
+
+String _formatHhMmFromMinutes(int totalMinutes) {
+  final wrapped = ((totalMinutes % 1440) + 1440) % 1440;
+  final h = wrapped ~/ 60;
+  final m = wrapped % 60;
+  return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+}
+
+PhotoWindows computePhotoWindows(String eventTime, bool isSunrise) {
+  final totalSec = _parseEventSeconds(eventTime);
+  final centerMin = (totalSec / 60).round();
+
+  String range(int startDelta, int endDelta) {
+    return '${_formatHhMmFromMinutes(centerMin + startDelta)}-${_formatHhMmFromMinutes(centerMin + endDelta)}';
+  }
+
+  if (isSunrise) {
+    return PhotoWindows(
+      goldenHour: range(0, 40),
+      afterglowWindow: range(-25, 5),
+      blueHour: range(-45, -20),
+    );
+  } else {
+    return PhotoWindows(
+      goldenHour: range(-40, 0),
+      afterglowWindow: range(-5, 25),
+      blueHour: range(20, 45),
+    );
+  }
+}
+
+String computeEventCountdown(String eventTime, bool isTomorrow) {
+  final now = DateTime.now();
+  final parts = eventTime.split(':');
+  final h = parts.isNotEmpty ? (int.tryParse(parts[0]) ?? 17) : 17;
+  final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+  final s = parts.length > 2 ? (int.tryParse(parts[2]) ?? 0) : 0;
+
+  final target = DateTime(
+    now.year,
+    now.month,
+    now.day + (isTomorrow ? 1 : 0),
+    h,
+    m,
+    s,
+  );
+  final diff = target.difference(now);
+
+  String fmt(Duration d) {
+    final abs = d.abs();
+    final hh = abs.inHours.toString().padLeft(2, '0');
+    final mm = (abs.inMinutes % 60).toString().padLeft(2, '0');
+    final ss = (abs.inSeconds % 60).toString().padLeft(2, '0');
+    return '$hh:$mm:$ss';
+  }
+
+  if (diff.isNegative) {
+    return '已过 ${fmt(diff)}';
+  }
+  return '还有 ${fmt(diff)}';
+}
+
+String generateForecastInsight(ForecastResult res) {
+  if (res.lcc >= 45) {
+    return '低云较厚（${res.lcc}%），容易遮挡地平线附近的直射阳光，出彩概率偏低。';
+  }
+  if (res.aod > 0.38) {
+    return '气溶胶偏高（AOD ${res.aod.toStringAsFixed(2)}），低空略浑浊，光线穿透力减弱。';
+  }
+  if (res.hcc + res.mcc < 25) {
+    return '高/中云偏少（合计 ${res.hcc + res.mcc}%），天空较晴朗，缺少云层作为火烧云反射载体。';
+  }
+  if (res.quality >= 1.05) {
+    return '高/中云（${res.hcc}%/${res.mcc}%）搭配通透低空，光线极易穿透漫反射，建议提前蹲守！';
+  }
+  if (res.quality >= 0.75) {
+    return '云层分布较理想且大气通透，${res.eventNameCn}前后有机会看到明显霞光。';
+  }
+  return '具备一定高/中云载体，但低云或通透度略有干扰，可能会出现局部微霞。';
+}
+
+List<DailyTrendPoint> computeFallbackWeeklyTrend(
+  String cityName,
+  String modelCode,
+  bool isSunrise,
+) {
+  final cleanName = normalizeCityName(cityName);
+  final base = computeForecast(
+    cleanName,
+    isSunrise ? 'rise_1' : 'set_1',
+    modelCode,
+  );
+  final cityInfo = cityDb[cleanName];
+  final lat = cityInfo?.lat ?? 31.2304;
+  final lon = cityInfo?.lon ?? 121.4737;
+
+  final now = DateTime.now();
+  const weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+  return List.generate(7, (day) {
+    final targetDate = now.add(Duration(days: day));
+    final label = day == 0
+        ? '今天'
+        : (day == 1 ? '明天' : weekdays[targetDate.weekday - 1]);
+    final sun = calcSunTime(lat, lon, isSunrise, day);
+
+    final wave = ((day * 37 + cleanName.hashCode) % 5 - 2) * 0.08;
+    final q = double.parse((base.quality + wave).clamp(0.10, 1.55).toStringAsFixed(2));
+    final aod = double.parse((base.aod + wave * 0.15).clamp(0.08, 0.55).toStringAsFixed(2));
+    final hcc = (base.hcc + (day * 7 % 15) - 7).clamp(8, 95);
+    final mcc = (base.mcc + (day * 5 % 12) - 6).clamp(5, 90);
+    final lcc = (base.lcc + (day * 3 % 10) - 5).clamp(3, 85);
+
+    return DailyTrendPoint(
+      dateLabel: label,
+      eventTime: sun.timeStr.substring(0, 5),
+      quality: q,
+      qualityTag: getQualityLabel(q),
+      aod: aod,
+      hcc: hcc,
+      mcc: mcc,
+      lcc: lcc,
+    );
+  });
+}

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/forecast_models.dart';
+import '../services/sun_calculator.dart';
 
 class HomeTab extends StatelessWidget {
   final bool isLocating;
@@ -41,6 +43,10 @@ class HomeTab extends StatelessWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final pct = math.min(1.0, math.max(0.06, forecast.quality / 1.6));
+    final isSunrise = forecast.eventCode.startsWith('rise');
+    final isTomorrow = forecast.eventCode.endsWith('2');
+    final photoWindows = computePhotoWindows(forecast.eventTime, isSunrise);
+    final insightText = generateForecastInsight(forecast);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -249,11 +255,21 @@ class HomeTab extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        '${forecast.cityName} ${forecast.eventNameCn}',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${forecast.cityName} ${forecast.eventNameCn}',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          _LiveCountdownText(
+                            eventTime: forecast.eventTime,
+                            isTomorrow: isTomorrow,
+                          ),
+                        ],
                       ),
                     ),
                     Chip(
@@ -330,6 +346,66 @@ class HomeTab extends StatelessWidget {
                             valueColor: AlwaysStoppedAnimation<Color>(cs.onSurface),
                           );
                         },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // 摄影黄金窗口（Golden / 火烧云 / Blue Hour）
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _PhotoWindowTile(
+                            label: '黄金时刻',
+                            timeRange: photoWindows.goldenHour,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: _PhotoWindowTile(
+                            label: '火烧云窗口',
+                            timeRange: photoWindows.afterglowWindow,
+                            highlighted: true,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: _PhotoWindowTile(
+                            label: '蓝调时刻',
+                            timeRange: photoWindows.blueHour,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 出彩原因一句话解读
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: cs.outlineVariant),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.auto_awesome_outlined,
+                            size: 15,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              insightText,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: cs.onSurface,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -429,6 +505,115 @@ class _DataTile extends StatelessWidget {
                 ),
               ],
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveCountdownText extends StatefulWidget {
+  final String eventTime;
+  final bool isTomorrow;
+
+  const _LiveCountdownText({
+    required this.eventTime,
+    required this.isTomorrow,
+  });
+
+  @override
+  State<_LiveCountdownText> createState() => _LiveCountdownTextState();
+}
+
+class _LiveCountdownTextState extends State<_LiveCountdownText> {
+  Timer? _timer;
+  late String _countdown;
+
+  @override
+  void initState() {
+    super.initState();
+    _countdown = computeEventCountdown(widget.eventTime, widget.isTomorrow);
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final next = computeEventCountdown(widget.eventTime, widget.isTomorrow);
+      if (next != _countdown) {
+        setState(() => _countdown = next);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiveCountdownText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.eventTime != widget.eventTime ||
+        oldWidget.isTomorrow != widget.isTomorrow) {
+      _countdown = computeEventCountdown(widget.eventTime, widget.isTomorrow);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      _countdown,
+      style: theme.textTheme.labelSmall?.copyWith(
+        fontFamily: 'monospace',
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+class _PhotoWindowTile extends StatelessWidget {
+  final String label;
+  final String timeRange;
+  final bool highlighted;
+
+  const _PhotoWindowTile({
+    required this.label,
+    required this.timeRange,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? cs.onSurface.withValues(alpha: 0.08)
+            : cs.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: highlighted ? cs.onSurface.withValues(alpha: 0.28) : cs.outlineVariant,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: highlighted ? cs.onSurface : cs.onSurfaceVariant,
+              fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
+              fontSize: 10.5,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            timeRange,
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
           ),
         ],
       ),

@@ -146,6 +146,7 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
   String _selectedModel = 'EC';
 
   late ForecastResult _forecast;
+  late List<DailyTrendPoint> _weeklyTrend;
   int _activeFetchId = 0;
 
   final TextEditingController _cityController = TextEditingController();
@@ -163,6 +164,11 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
   void initState() {
     super.initState();
     _forecast = computeForecast(_currentCity, _selectedEvent, _selectedModel);
+    _weeklyTrend = computeFallbackWeeklyTrend(
+      _currentCity,
+      _selectedModel,
+      _selectedEvent.startsWith('rise'),
+    );
     _labResult = calculateManhattanhenge(
       lon: 121.4737,
       lat: 31.2304,
@@ -190,9 +196,15 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
         : _currentCity;
 
     final res = computeForecast(queryCity, _selectedEvent, _selectedModel);
+    final isSunrise = _selectedEvent.startsWith('rise');
     setState(() {
       _currentCity = res.cityName;
       _forecast = res;
+      _weeklyTrend = computeFallbackWeeklyTrend(
+        res.cityName,
+        _selectedModel,
+        isSunrise,
+      );
       final info = cityDb[res.cityName];
       if (info != null) {
         _lonController.text = info.lon.toString();
@@ -216,6 +228,17 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
           _latController.text = info.lat.toString();
         }
         _recalculateLab();
+      });
+    });
+
+    MeteoService.fetchWeeklyTrend(
+      cityName: res.cityName,
+      modelCode: _selectedModel,
+      isSunrise: isSunrise,
+    ).then((trend) {
+      if (!mounted || fetchId != _activeFetchId || trend == null) return;
+      setState(() {
+        _weeklyTrend = trend;
       });
     });
   }
@@ -378,6 +401,7 @@ class _SeesunHomePageState extends State<SeesunHomePage> {
                     ),
                   1 => DetailedTab(
                       forecast: _forecast,
+                      weeklyTrend: _weeklyTrend,
                       onBack: () => _switchTab(0),
                       onSelectEvent: (ev) {
                         _selectedEvent = ev;
